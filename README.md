@@ -257,4 +257,4 @@ MIT
 
 ## Author
 
-[mojeda101](https://github.com/mojeda101) — Ludus security awareness ranges.
+This role was created by [mojeda101](https://github.com/mojeda101) for [Ludus](https://ludus.cloud/).
