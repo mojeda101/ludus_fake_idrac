@@ -1,0 +1,29 @@
+---
+galaxy_info:
+  role_name: fake_idrac
+  author: mojeda101
+  description: >
+    Deploys a fake SHELL EMC iDRAC9 web interface in Docker for CTF ranges
+    and security awareness training. Teaches default credential risks
+    in out-of-band management systems.
+  license: MIT
+  min_ansible_version: "2.14"
+  platforms:
+    - name: Debian
+      versions:
+        - bullseye
+        - bookworm
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
+  galaxy_tags:
+    - ludus
+    - docker
+    - ctf
+    - security
+    - training
+    - idrac
+    - honeypot
+
+dependencies: []

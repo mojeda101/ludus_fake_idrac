@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iDRAC9 - {{ hostname }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1a2e;
+      font-family: "Open Sans", Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top banner ── */
+    .top-bar {
+      background: #0d1117;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 2px solid #007db8;
+      flex-shrink: 0;
+    }
+    .dell-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .dell-logo-icon {
+      width: 36px; height: 36px;
+      background: #007db8;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 900; font-size: 14px;
+    }
+    .top-bar-right {
+      margin-left: auto;
+      color: #8892a4;
+      font-size: 12px;
+    }
+
+    /* ── Content wrapper ── */
+    .content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0f1923 0%, #16213e 50%, #0f3460 100%);
+    }
+
+    .login-container {
+      display: flex;
+      gap: 0;
+      width: 820px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      border: 1px solid #1e3a5f;
+    }
+
+    /* ── Left panel: server info ── */
+    .server-panel {
+      background: #0d1117;
+      padding: 40px 32px;
+      width: 320px;
+      flex-shrink: 0;
+      border-right: 1px solid #1e3a5f;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+    .server-panel h2 {
+      color: #007db8;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      border-bottom: 1px solid #1e3a5f;
+      padding-bottom: 10px;
+    }
+    .info-block { display: flex; flex-direction: column; gap: 10px; }
+    .info-row { display: flex; flex-direction: column; gap: 2px; }
+    .info-label { color: #5a6a7e; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+    .info-value { color: #c9d1d9; font-size: 13px; font-weight: 500; }
+    .info-value.idrac-fw { color: #58a6ff; }
+
+    .health-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #161b22;
+      padding: 12px 14px;
+      border-radius: 4px;
+      border-left: 3px solid #f0a500;
+    }
+    .health-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #f0a500;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #f0a500;
+    }
+    .health-text { color: #c9d1d9; font-size: 12px; }
+    .health-text strong { color: #f0a500; }
+
+    .warning-msg {
+      background: #2d1b00;
+      border: 1px solid #f0a500;
+      border-radius: 4px;
+      padding: 10px 12px;
+      color: #f0a500;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .warning-msg::before { content: "⚠ "; }
+
+    /* ── Right panel: login form ── */
+    .form-panel {
+      background: #161b22;
+      padding: 48px 40px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .form-panel h1 {
+      color: #c9d1d9;
+      font-size: 22px;
+      font-weight: 300;
+      margin-bottom: 6px;
+    }
+    .form-panel h1 span { color: #007db8; font-weight: 600; }
+    .subtitle {
+      color: #5a6a7e;
+      font-size: 12px;
+      margin-bottom: 32px;
+    }
+
+    .form-group { margin-bottom: 20px; }
+    .form-group label {
+      display: block;
+      color: #8892a4;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 3px;
+      padding: 10px 12px;
+      color: #c9d1d9;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .form-group input:focus { border-color: #007db8; box-shadow: 0 0 0 3px rgba(0,125,184,.15); }
+    .form-group input::placeholder { color: #3d4a58; }
+
+    .btn-login {
+      width: 100%;
+      padding: 11px;
+      background: #007db8;
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 8px;
+    }
+    .btn-login:hover { background: #0091d5; }
+    .btn-login:active { background: #005f8a; }
+
+    .error-msg {
+      background: #2d1e1e;
+      border: 1px solid #cf222e;
+      border-radius: 3px;
+      padding: 10px 12px;
+      color: #f85149;
+      font-size: 12px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-msg::before { content: "✕"; font-weight: bold; }
+
+    .divider { border: none; border-top: 1px solid #1e3a5f; margin: 28px 0; }
+
+    .links { display: flex; gap: 16px; }
+    .links a {
+      color: #58a6ff;
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .links a:hover { text-decoration: underline; }
+
+    /* ── Footer ── */
+    .footer {
+      background: #0d1117;
+      padding: 10px 24px;
+      display: flex;
+      justify-content: space-between;
+      border-top: 1px solid #1e3a5f;
+      flex-shrink: 0;
+    }
+    .footer span { color: #3d4a58; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="dell-logo">
+      <div class="dell-logo-icon">D</div>
+      SHELL EMC
+    </div>
+    <div class="top-bar-right">Integrated SHELL Remote Management Controller 9</div>
+  </div>
+
+  <div class="content">
+    <div class="login-container">
+
+      <!-- Left: server info -->
+      <div class="server-panel">
+        <h2>System Information</h2>
+
+        <div class="info-block">
+          <div class="info-row">
+            <span class="info-label">Hostname</span>
+            <span class="info-value">{{ hostname }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">System Model</span>
+            <span class="info-value">SHELL {{ model }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Service Tag</span>
+            <span class="info-value">{{ service_tag }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">iDRAC Firmware</span>
+            <span class="info-value idrac-fw">{{ fw_version }}</span>
+          </div>
+        </div>
+
+        <div class="health-indicator">
+          <div class="health-dot"></div>
+          <div class="health-text">System Health: <strong>Warning</strong></div>
+        </div>
+
+        <div class="warning-msg">
+          Default credentials detected. Change factory settings immediately to comply with your security policy.
+        </div>
+      </div>
+
+      <!-- Right: login form -->
+      <div class="form-panel">
+        <h1>iDRAC<span>9</span> Login</h1>
+        <p class="subtitle">SHELL {{ model }} &nbsp;·&nbsp; {{ service_tag }}</p>
+
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/login" autocomplete="off">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username"
+                   placeholder="Enter username" autofocus>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password"
+                   placeholder="Enter password">
+          </div>
+          <button type="submit" class="btn-login">Log In</button>
+        </form>
+
+        <hr class="divider">
+        <div class="links">
+          <a href="#">Help</a>
+          <a href="#">iDRAC Documentation</a>
+          <a href="#">Support</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>Copyright &copy; 2024 SHELL EMC Inc. All rights reserved.</span>
+    <span>Integrated SHELL Remote Management Controller 9 {{ fw_version }}</span>
+  </div>
+
+</body>
+</html>

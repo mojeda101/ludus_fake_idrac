@@ -1,0 +1,34 @@
+---
+services:
+  fake-idrac:
+    image: fake_idrac   # must match the name used in the docker_image build task
+    build:
+      context: ./idrac_app
+      dockerfile: Dockerfile
+    container_name: fake_idrac
+    restart: unless-stopped
+    # network_mode: host — gunicorn binds directly on host:IDRAC_PORT so traffic
+    # stays in the INPUT chain and FAKE_FW_MGMT iptables rules actually fire.
+    # With the old port-mapped bridge setup Docker DNAT'd traffic in PREROUTING
+    # → FORWARD, bypassing INPUT entirely and making the firewall block a no-op.
+    network_mode: host
+    environment:
+      - IDRAC_PORT=${IDRAC_PORT:-8443}
+      - FLASK_SECRET=${FLASK_SECRET:-change-me-in-production}
+      - IDRAC_FLAG=${IDRAC_FLAG:-CTF{d3f4ult_1DR4C_r00t_c4lv1n_4r3_n0t_s3cr3ts}}
+      - IDRAC_HOSTNAME=${IDRAC_HOSTNAME:-SRV-PROD-DC01}
+      - IDRAC_MODEL=${IDRAC_MODEL:-ShellEdge SX740}
+      - IDRAC_SERVICE_TAG=${IDRAC_SERVICE_TAG:-7XK3M42}
+      - IDRAC_FW_VERSION=${IDRAC_FW_VERSION:-5.10.00.00}
+      - IDRAC_IP=${IDRAC_IP:-192.168.10.250}
+      - IDRAC_ROOT_PASS=${IDRAC_ROOT_PASS:-calvin}
+      - IDRAC_ADMIN_PASS=${IDRAC_ADMIN_PASS:-}
+      # ── Virtual Console / SOL ───────────────────────────────────────────────
+      - SOL_ENABLED=${SOL_ENABLED:-false}
+      - SOL_FAKE_HOST=${SOL_FAKE_HOST:-192.168.10.11}
+      - SOL_FAKE_USER=${SOL_FAKE_USER:-sysadmin}
+      - SOL_FAKE_PASS=${SOL_FAKE_PASS:-}
+      - SOL_SSH_HOST=${SOL_SSH_HOST:-}
+      - SOL_SSH_PORT=${SOL_SSH_PORT:-22}
+      - SOL_SSH_USER=${SOL_SSH_USER:-}
+      - SOL_SSH_PASS=${SOL_SSH_PASS:-}

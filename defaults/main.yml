@@ -1,0 +1,45 @@
+---
+# ── ludus_fake_idrac defaults ──────────────────────────────────────────────────
+
+# Port the fake iDRAC web UI is exposed on (host port → container:5000)
+# Default 8443 so it doesn't require root; use 443 for realism in closed ranges
+ludus_fake_idrac_port: 8443
+
+# Install path on the target host
+ludus_fake_idrac_install_dir: /opt/fake_idrac
+
+# ── CTF / lab configuration ────────────────────────────────────────────────────
+ludus_fake_idrac_flag: "CTF{d3f4ult_1DR4C_r00t_c4lv1n_4r3_n0t_s3cr3ts}"
+
+# ── Fake server identity ───────────────────────────────────────────────────────
+ludus_fake_idrac_hostname:    "SRV-PROD-DC01"
+ludus_fake_idrac_model:       "ShellEdge SX740"
+ludus_fake_idrac_service_tag: "7XK3M42"
+ludus_fake_idrac_fw_version:  "5.10.00.00"
+ludus_fake_idrac_display_ip:  "192.168.10.250"
+
+# ── Credentials (teaching point: root/calvin = SHELL EMC factory defaults) ──────────
+ludus_fake_idrac_root_pass:  "calvin"
+ludus_fake_idrac_admin_pass: ""   # empty = account disabled
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+ludus_fake_idrac_force_rebuild: false
+
+# ── Virtual Console / Serial Over LAN (SOL) ───────────────────────────────────
+# Set to true to enable the Virtual Console link in the iDRAC sidebar.
+# Requires SOL_SSH_HOST to point at a real reachable machine.
+ludus_fake_idrac_sol_enabled:   false
+
+# Displayed in the fake SSH banner (cosmetic — what the "server" pretends to be)
+ludus_fake_idrac_sol_fake_host: "192.168.10.11"
+
+# Fake SSH credentials the student must enter to pass the first gate
+ludus_fake_idrac_sol_fake_user: "sysadmin"
+ludus_fake_idrac_sol_fake_pass: "supersecret123"
+
+# Real SSH target — connected after fake login succeeds
+# Set to the IP of any Ludus VM the student should reach after passing both gates
+ludus_fake_idrac_sol_ssh_host:  ""
+ludus_fake_idrac_sol_ssh_port:  22
+ludus_fake_idrac_sol_ssh_user:  ""
+ludus_fake_idrac_sol_ssh_pass:  ""

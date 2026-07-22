@@ -1,0 +1,9 @@
+---
+- name: Rebuild fake-idrac image
+  community.docker.docker_compose_v2:
+    project_src: "{{ ludus_fake_idrac_install_dir }}"
+    env_files:
+      - "{{ ludus_fake_idrac_install_dir }}/.env"
+    build: always
+    state: present
+  become: true

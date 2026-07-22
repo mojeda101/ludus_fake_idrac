@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Virtual Console — {{ hostname }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d0d;
+      font-family: Arial, sans-serif;
+      display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+      color: #c9d1d9;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: #0d1117; border-bottom: 2px solid #007db8;
+      padding: 8px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    .topbar-logo  { color: #007db8; font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+    .topbar-title { color: #c9d1d9; font-size: 13px; }
+    .topbar-host  { color: #58a6ff; font-size: 12px; margin-left: 4px; }
+    .topbar-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+    .badge-sol { background: #0c2a0c; border: 1px solid #2ea043; color: #3fb950; font-size: 10px; padding: 2px 8px; border-radius: 10px; }
+    .btn-close {
+      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+      padding: 4px 12px; border-radius: 3px; cursor: pointer; font-size: 12px; text-decoration: none;
+    }
+    .btn-close:hover { background: #c9302c; border-color: #c9302c; color: #fff; }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      background: #161b22; border-bottom: 1px solid #1e3a5f;
+      padding: 4px 16px; display: flex; align-items: center; gap: 20px; flex-shrink: 0;
+    }
+    .toolbar span { color: #5a6a7e; font-size: 11px; }
+    .toolbar strong { color: #c9d1d9; }
+    #status-dot { color: #f0a500; font-weight: 600; font-size: 11px; }
+    #status-dot.connected { color: #3fb950; }
+
+    /* ── Content area ── */
+    .content { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+
+    /* ── Phase 1: Auth card ── */
+    #auth-phase {
+      width: 680px;
+      background: #0d1117;
+      border: 1px solid #1e3a5f;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.8);
+    }
+    .auth-titlebar {
+      background: #161b22; padding: 10px 16px;
+      border-bottom: 1px solid #1e3a5f;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .auth-titlebar .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dot-red    { background: #ff5f57; }
+    .dot-yellow { background: #febc2e; }
+    .dot-green  { background: #28c840; }
+    .auth-titlebar span { color: #8892a4; font-size: 12px; margin-left: 8px; font-family: monospace; }
+
+    /* SSH negotiation output area */
+    #ssh-log {
+      background: #0a0a0a;
+      padding: 16px 20px;
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      min-height: 120px;
+      color: #8892a4;
+      border-bottom: 1px solid #1e3a5f;
+    }
+    #ssh-log .cmd  { color: #58a6ff; }
+    #ssh-log .warn { color: #f0a500; }
+    #ssh-log .ok   { color: #3fb950; }
+    #ssh-log .err  { color: #f85149; }
+
+    /* Password prompt */
+    .auth-body { padding: 20px 20px 24px; }
+    .prompt-label {
+      font-family: "Courier New", monospace;
+      font-size: 14px;
+      color: #c9d1d9;
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .prompt-label::before { content: "❯"; color: #3fb950; }
+
+    .pass-row { display: flex; gap: 10px; align-items: center; }
+    #pass-input {
+      flex: 1;
+      background: #0a0a0a;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 10px 14px;
+      color: #c9d1d9;
+      font-family: "Courier New", monospace;
+      font-size: 14px;
+      outline: none;
+      letter-spacing: 2px;
+      transition: border-color .2s;
+    }
+    #pass-input:focus { border-color: #007db8; box-shadow: 0 0 0 3px rgba(0,125,184,.15); }
+    #pass-input:disabled { opacity: .5; cursor: not-allowed; }
+
+    #btn-auth {
+      background: #007db8; color: #fff; border: none;
+      padding: 10px 20px; border-radius: 4px;
+      font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: background .2s;
+    }
+    #btn-auth:hover { background: #0091d5; }
+    #btn-auth:disabled { background: #1e3a5f; cursor: not-allowed; }
+
+    #auth-msg {
+      margin-top: 12px;
+      font-family: "Courier New", monospace;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    #auth-msg.fail { color: #f85149; }
+    #auth-msg.ok   { color: #3fb950; }
+
+    /* Hint for CTF players */
+    .auth-hint {
+      margin-top: 14px; padding: 10px 14px;
+      background: #161b22; border: 1px solid #1e3a5f; border-radius: 4px;
+      font-size: 11px; color: #5a6a7e;
+    }
+    .auth-hint code { color: #58a6ff; }
+
+    /* ── Phase 2: xterm terminal ── */
+    #terminal-phase {
+      display: none;
+      width: 100%; height: 100%;
+      background: #000;
+      padding: 8px;
+    }
+    #terminal { width: 100%; height: 100%; }
+
+    /* ── Footer ── */
+    .footer {
+      background: #0d1117; border-top: 1px solid #1e3a5f;
+      padding: 5px 16px; display: flex; justify-content: space-between; flex-shrink: 0;
+    }
+    .footer span { color: #3d4a58; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <span class="topbar-logo">SHELL EMC</span>
+  <span class="topbar-title">iDRAC9 — Virtual Console / Serial Over LAN</span>
+  <span class="topbar-host">{{ hostname }}</span>
+  <div class="topbar-right">
+    <span class="badge-sol">SOL ACTIVE</span>
+    <a class="btn-close" href="/dashboard">✕ Close</a>
+  </div>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <span>Target: <strong>{{ sol_fake_host }}</strong></span>
+  <span>User: <strong>{{ sol_fake_user }}</strong></span>
+  <span>→ SSH: <strong>{{ sol_ssh_host }}</strong></span>
+  <span id="status-dot">● Authenticating</span>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- Phase 1: SSH login card -->
+  <div id="auth-phase">
+    <div class="auth-titlebar">
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+      <span>ssh {{ sol_fake_user }}@{{ sol_fake_host }}</span>
+    </div>
+
+    <div id="ssh-log">
+      <!-- filled by JS via WebSocket -->
+    </div>
+
+    <div class="auth-body">
+      <div class="prompt-label">{{ sol_fake_user }}@{{ sol_fake_host }}'s password:</div>
+      <div class="pass-row">
+        <input type="password" id="pass-input"
+               placeholder="Enter password"
+               autofocus autocomplete="off"
+               onkeydown="if(event.key==='Enter') submitAuth()">
+        <button id="btn-auth" onclick="submitAuth()">Authenticate ↵</button>
+      </div>
+      <div id="auth-msg"></div>
+      <div class="auth-hint">
+        <strong>iDRAC SOL</strong> — Serial Over LAN provides direct console access to the server.<br>
+        Enter the OS-level credentials for <code>{{ sol_fake_host }}</code> to open a terminal session.
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 2: live SSH terminal -->
+  <div id="terminal-phase">
+    <div id="terminal"></div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <span>iDRAC9 {{ fw_version }} — Virtual Console</span>
+  <span id="footer-hint">Enter credentials above to open SSH session</span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
+<script>
+  const sock = io('/console', { transports: ['websocket'] });
+
+  // ── Phase 1: auth log (animates connection negotiation text) ────────────────
+  const log = document.getElementById('ssh-log');
+  function appendLog(html) {
+    log.innerHTML += html + '<br>';
+  }
+
+  sock.on('banner', (line) => {
+    appendLog(line);
+  });
+
+  sock.on('connect', () => {
+    document.getElementById('pass-input').focus();
+  });
+
+  sock.on('auth_ok', () => {
+    const msg = document.getElementById('auth-msg');
+    msg.className = 'ok';
+    msg.textContent = '✓ Authenticated — opening SSH session...';
+    document.getElementById('btn-auth').disabled = true;
+    document.getElementById('pass-input').disabled = true;
+    setTimeout(switchToTerminal, 600);
+  });
+
+  sock.on('auth_fail', (data) => {
+    const msg = document.getElementById('auth-msg');
+    msg.className = 'fail';
+    const left = data.tries_left;
+    msg.textContent = left > 0
+      ? `Permission denied (${left} attempt${left>1?'s':''} remaining)`
+      : 'Permission denied — too many attempts, disconnecting.';
+    const inp = document.getElementById('pass-input');
+    inp.value = '';
+    inp.focus();
+    if (left <= 0) {
+      inp.disabled = true;
+      document.getElementById('btn-auth').disabled = true;
+    }
+  });
+
+  function submitAuth() {
+    const inp = document.getElementById('pass-input');
+    if (inp.disabled) return;
+    sock.emit('auth', inp.value);
+    inp.value = '';
+  }
+
+  // ── Phase 2: real SSH terminal ─────────────────────────────────────────────
+  const term = new Terminal({
+    cursorBlink: true,
+    fontSize: 14,
+    fontFamily: "'Courier New','Lucida Console',monospace",
+    cols: 200,
+    rows: 50,
+    theme: {
+      background:'#000', foreground:'#d4d4d4', cursor:'#00ff00',
+      black:'#000', red:'#cd3131', green:'#0dbc79', yellow:'#e5e510',
+      blue:'#2472c8', magenta:'#bc3fbc', cyan:'#11a8cd', white:'#e5e5e5',
+      brightGreen:'#23d18b', brightYellow:'#f5f543', brightBlue:'#3b8eea',
+      brightCyan:'#29b8db', brightWhite:'#e5e5e5',
+    },
+    scrollback: 1000,
+  });
+
+  // Open xterm immediately (hidden) — avoids race where _do_connect emits
+  // before the terminal div is visible and term.write() would be lost
+  term.open(document.getElementById('terminal'));
+
+  // Buffer any 'out' events that arrive before switchToTerminal shows the div
+  let _termReady = false;
+  const _outBuf = [];
+
+  sock.on('out', (data) => {
+    if (_termReady) {
+      term.write(data);
+    } else {
+      _outBuf.push(data);
+    }
+  });
+
+  function switchToTerminal() {
+    document.getElementById('auth-phase').style.display = 'none';
+    document.getElementById('terminal-phase').style.display = 'block';
+    term.focus();
+    _termReady = true;
+    // Flush any buffered output from _do_connect
+    _outBuf.forEach(d => term.write(d));
+    _outBuf.length = 0;
+    const s = document.getElementById('status-dot');
+    s.textContent = '● Connected';
+    s.className = 'connected';
+    document.getElementById('footer-hint').textContent =
+      'Press Ctrl+D or type exit to close the remote session';
+  }
+
+  sock.on('disconnect', () => {
+    term.write('\r\n\x1b[33m[SOL session disconnected]\x1b[0m\r\n');
+    const s = document.getElementById('status-dot');
+    s.textContent = '● Disconnected';
+    s.style.color = '#f85149';
+  });
+
+  term.onData((data) => { sock.emit('inp', data); });
+  term.onResize(({cols, rows}) => { sock.emit('resize', {cols, rows}); });
+</script>
+</body>
+</html>

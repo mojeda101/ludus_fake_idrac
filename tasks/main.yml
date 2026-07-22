@@ -1,0 +1,184 @@
+---
+# ludus_fake_idrac – tasks/main.yml
+# Deploys a fake SHELL EMC iDRAC9 web interface in Docker for CTF / security awareness labs
+
+# ── 1. Docker prerequisites ───────────────────────────────────────────────────
+
+- name: Install Docker dependencies
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: true
+  become: true
+
+- name: Add Docker GPG key
+  ansible.builtin.apt_key:
+    url: https://download.docker.com/linux/debian/gpg
+    state: present
+  become: true
+
+- name: Add Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch=amd64]
+      https://download.docker.com/linux/debian
+      {{ ansible_distribution_release }} stable
+    state: present
+    filename: docker
+  become: true
+
+- name: Install Docker CE and Compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  become: true
+
+- name: Enable and start Docker service
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+  become: true
+
+- name: Install Docker SDK for Python (python3-docker via apt, avoids PEP 668)
+  ansible.builtin.apt:
+    name: python3-docker
+    state: present
+    update_cache: false   # cache already fresh from earlier apt tasks
+  become: true
+
+# ── 2. Create install directory and copy application ─────────────────────────
+
+- name: Create install directory
+  ansible.builtin.file:
+    path: "{{ ludus_fake_idrac_install_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+- name: Copy docker-compose file
+  ansible.builtin.copy:
+    src: docker-compose.yml
+    dest: "{{ ludus_fake_idrac_install_dir }}/docker-compose.yml"
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Copy iDRAC application source
+  ansible.builtin.copy:
+    src: idrac_app/
+    dest: "{{ ludus_fake_idrac_install_dir }}/idrac_app/"
+    owner: root
+    group: root
+    mode: preserve
+  become: true
+  notify: Rebuild fake-idrac image
+
+# ── 3. Write .env file with all role variables ────────────────────────────────
+
+- name: Template .env file
+  ansible.builtin.copy:
+    dest: "{{ ludus_fake_idrac_install_dir }}/.env"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      IDRAC_PORT={{ ludus_fake_idrac_port }}
+      FLASK_SECRET={{ lookup('password', '/dev/null chars=ascii_letters,digits length=32') }}
+      IDRAC_FLAG={{ ludus_fake_idrac_flag }}
+      IDRAC_HOSTNAME={{ ludus_fake_idrac_hostname }}
+      IDRAC_MODEL={{ ludus_fake_idrac_model }}
+      IDRAC_SERVICE_TAG={{ ludus_fake_idrac_service_tag }}
+      IDRAC_FW_VERSION={{ ludus_fake_idrac_fw_version }}
+      IDRAC_IP={{ ludus_fake_idrac_display_ip }}
+      IDRAC_ROOT_PASS={{ ludus_fake_idrac_root_pass }}
+      IDRAC_ADMIN_PASS={{ ludus_fake_idrac_admin_pass }}
+      SOL_ENABLED={{ ludus_fake_idrac_sol_enabled | lower }}
+      SOL_FAKE_HOST={{ ludus_fake_idrac_sol_fake_host }}
+      SOL_FAKE_USER={{ ludus_fake_idrac_sol_fake_user }}
+      SOL_FAKE_PASS={{ ludus_fake_idrac_sol_fake_pass }}
+      SOL_SSH_HOST={{ ludus_fake_idrac_sol_ssh_host }}
+      SOL_SSH_PORT={{ ludus_fake_idrac_sol_ssh_port }}
+      SOL_SSH_USER={{ ludus_fake_idrac_sol_ssh_user }}
+      SOL_SSH_PASS={{ ludus_fake_idrac_sol_ssh_pass }}
+  become: true
+
+# ── 4 + 5. Build image and start container (single compose call) ─────────────
+# Using a plain shell command avoids the community.docker image-naming mismatch
+# where docker_image and docker_compose_v2 use different tag conventions and
+# compose ends up trying to pull an image that was never pushed anywhere.
+
+- name: Build and start fake-idrac (docker compose up --build)
+  ansible.builtin.shell: |
+    set -e
+    cd {{ ludus_fake_idrac_install_dir }}
+    docker compose --env-file .env build --no-cache
+    docker compose --env-file .env up -d
+  args:
+    executable: /bin/bash
+  become: true
+  register: _compose_result
+  changed_when: true
+
+- name: Show compose build+start output
+  ansible.builtin.debug:
+    var: _compose_result.stderr_lines
+
+# ── 6. Debug — run before wait_for so errors surface in the Ansible output ───
+
+- name: Debug - container status and port listeners
+  ansible.builtin.shell: |
+    echo "=== docker ps ==="
+    docker ps -a --filter name=fake_idrac
+    echo "=== container logs (last 30 lines) ==="
+    docker logs fake_idrac 2>&1 | tail -30 || echo "(no logs yet)"
+    echo "=== port {{ ludus_fake_idrac_port }} listeners ==="
+    ss -tlnp | grep {{ ludus_fake_idrac_port }} || echo "(nothing on {{ ludus_fake_idrac_port }})"
+    echo "=== iptables FAKE_FW_MGMT chain ==="
+    iptables -L FAKE_FW_MGMT -n 2>/dev/null || echo "(chain not yet created)"
+  args:
+    executable: /bin/bash
+  become: true
+  register: _idrac_debug
+  changed_when: false
+
+- name: Show debug output
+  ansible.builtin.debug:
+    var: _idrac_debug.stdout_lines
+
+# ── 7. Wait for port ──────────────────────────────────────────────────────────
+
+- name: Wait for fake iDRAC port to be open
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ ludus_fake_idrac_port }}"
+    timeout: 180
+    state: started
+    delay: 5
+  become: true
+
+- name: Print access information
+  ansible.builtin.debug:
+    msg:
+      - "==================================================="
+      - " Fake iDRAC9 deployed successfully!"
+      - "==================================================="
+      - " URL     : http://{{ ansible_host }}:{{ ludus_fake_idrac_port }}"
+      - " User    : root"
+      - " Pass    : {{ ludus_fake_idrac_root_pass }}"
+      - " Flag    : {{ ludus_fake_idrac_flag }}"
+      - " API tip : GET /api/health  (authenticated, bonus flag)"
+      - "==================================================="
